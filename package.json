@@ -1,0 +1,16 @@
+{
+  "name": "hubot-slack-welcome",
+  "version": "0.0.1",
+  "description": "Display welcome message when someone joins your slack channel",
+  "main": "index.coffee",
+  "author": "knjcode <knjcode@gmail.com>",
+  "license": "MIT",
+  "keywords": "hubot, hubot-scripts, welcome, message, slack",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knjcode/hubot-slack-welcome.git"
+  },
+  "bugs": {
+    "url": "https://github.com/knjcode/hubot-slack-welcome/issues"
+  }
+}
