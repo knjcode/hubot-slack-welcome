@@ -6,7 +6,7 @@
 #   HUBOT_SLACK_WELCOME_MESSAGE        - set welcome message (default. Welcome!)
 #   HUBOT_SLACK_WELCOME_BOT_NAME       - set custom bot name in welcome message (default. hubot name)
 #   HUBOT_SLACK_WELCOME_ICON_URL       - set custom bot icon in welcome message (default. hubot icon)
-#   SLACK_INVITER_API_ENDPOINT         - set slack-inviter-api endpoint
+#   SLACK_INVITER_API_URL              - set slack-inviter-api URL
 #   SLACK_INVITER_API_TOKEN            - set slack-inviter-api access token
 #
 # Commands:
@@ -18,7 +18,7 @@
 targetChannel = process.env.HUBOT_SLACK_WELCOME_TARGET_CHANNEL ? 'general'
 welcomeMessage = process.env.HUBOT_SLACK_WELCOME_MESSAGE ? 'Welcome!'
 welcomeMessage = welcomeMessage.replace(/\\n/g, '\n')
-slackInviterApiEndpoint = process.env.SLACK_INVITER_API_ENDPOINT
+slackInviterApiUrl = process.env.SLACK_INVITER_API_URL
 slackInviterApiToken = process.env.SLACK_INVITER_API_TOKEN
 
 module.exports = (robot) ->
@@ -48,7 +48,7 @@ module.exports = (robot) ->
     if enterChannel is targetChannel
       # Need hubot-slack v4
       if msg.envelope.user.id[0] is 'U' # ignore bot user
-        requestURI = "#{slackInviterApiEndpoint}/users/#{msg.envelope.user.id}/inviter"
+        requestURI = "#{slackInviterApiUrl}/users/#{msg.envelope.user.id}/inviter"
         robot.http(requestURI)
           .header('Authorization', "Bearer #{slackInviterApiToken}")
           .get() (err, res, body) ->
