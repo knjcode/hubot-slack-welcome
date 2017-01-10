@@ -21,6 +21,8 @@ welcomeMessage = welcomeMessage.replace(/\\n/g, '\n')
 slackInviterApiUrl = process.env.SLACK_INVITER_API_URL
 slackInviterApiToken = process.env.SLACK_INVITER_API_TOKEN
 
+rp = require 'request-promise'
+
 module.exports = (robot) ->
   if robot.adapter?.client?._apiCall?
     hubotSlackVersion = 3
@@ -38,6 +40,30 @@ module.exports = (robot) ->
 
   robot.logger.info "hubot-slack-welcome: wait for user at ##{targetChannel}"
 
+  createChatPostURI = (msg) ->
+    requestURI = "https://slack.com/api/chat.postMessage?" +
+                 "token=#{process.env.HUBOT_SLACK_TOKEN}&" +
+                 "channel=#{targetChannel}&" +
+                 "text=#{encodeURIComponent(msg)}&" +
+                 "link_names=1&"
+    if process.env.HUBOT_SLACK_WELCOME_BOT_NAME
+      requestURI += "username=#{name}&icon_url=#{icon}"
+    else
+      requestURI += "as_user=true"
+    requestURI
+
+  createGetInviterOptions = (userId) ->
+    getInviterOptions =
+      uri: "#{slackInviterApiUrl}/users/#{userId}/inviter"
+      headers:
+        Authorization: "Bearer #{slackInviterApiToken}"
+      json: true
+
+  createGetChannelsListOptions = ->
+    getChannelsListOptions =
+      uri: "https://slack.com/api/channels.list?token=#{process.env.HUBOT_SLACK_TOKEN}"
+      json: true
+
   robot.enter (msg) ->
     enterChannel =
       if hubotSlackVersion is 3
@@ -47,35 +73,29 @@ module.exports = (robot) ->
 
     if enterChannel is targetChannel
       # Need hubot-slack v4
-      if msg.envelope.user.id[0] is 'U' # ignore bot user
-        requestURI = "#{slackInviterApiUrl}/users/#{msg.envelope.user.id}/inviter"
-        robot.http(requestURI)
-          .header('Authorization', "Bearer #{slackInviterApiToken}")
-          .get() (err, res, body) ->
-            if err
-              robot.logger.error err
-              return
-            response = JSON.parse(body)
-            robot.logger.debug response
-            if response['status'] is 200
-              invitor_id = response['inviter_id']
-              invitor_name = robot.adapter.client.rtm.dataStore.getUserById(invitor_id).name
-              robot.logger.debug "join_user: #{msg.envelope.user.name} invitor: #{invitor_name}"
+      unless msg.envelope.user.is_bot # ignore bot user
+        message = "@#{msg.envelope.user.name}:\n#{welcomeMessage}"
 
-              message = "@#{msg.envelope.user.name}:\n#{welcomeMessage}\n招待者の @#{invitor_name} さんはプロフ記入等のフォローお願いします"
+        inviterOptions = createGetInviterOptions(msg.envelope.user.id)
+        rp(inviterOptions)
+          .then (res) ->
+            robot.logger.debug res
+            inviter_id = res['inviter_id']
+            inviter_name = robot.adapter.client.rtm.dataStore.getUserById(inviter_id).name
+            robot.logger.debug "join_user: #{msg.envelope.user.name} inviter: #{inviter_name}"
 
-              requestURI = "https://slack.com/api/chat.postMessage?" +
-                           "token=#{process.env.HUBOT_SLACK_TOKEN}&" +
-                           "channel=#{targetChannel}&" +
-                           "text=#{encodeURIComponent(message)}&" +
-                           "link_names=1&"
-              if process.env.HUBOT_SLACK_WELCOME_BOT_NAME
-                requestURI += "username=#{name}&icon_url=#{icon}"
-              else
-                requestURI += "as_user=true"
+            message += "\n招待者の @#{inviter_name} さんはプロフ記入等のフォローお願いします"
 
-              robot.http(requestURI)
-                .get() (err, res, body) ->
-                  if err
-                    robot.logger.error err
-                  robot.logger.info body
+            channelsListOptions = createGetChannelsListOptions()
+            rp(channelsListOptions)
+          .then (res) ->
+            channel = res.channels.filter (channel) -> channel.name is targetChannel
+            numOfChannelMembers = channel[0].num_members
+
+            message += "\n(#{msg.envelope.user.name}さんはこのchannelの#{numOfChannelMembers}人目のメンバーです)"
+          .catch (error) ->
+            # failed to get inviter
+            robot.logger.debug error
+          .finally ->
+            chatPostURI = createChatPostURI(message)
+            rp(chatPostURI)
